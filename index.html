@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>GeoPointMaker Pro ✦ Fixed Line Interpolator</title>
+    <title>GeoPointMaker Pro ✦ Free + Premium</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * {
@@ -47,6 +47,34 @@
         .top-toolbar button:hover {
             background: #eef2ff;
             border-color: #818cf8;
+        }
+
+        .premium-badge {
+            background: linear-gradient(135deg, #f5af19, #f12711);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-left: auto;
+        }
+
+        .free-badge {
+            background: #64748b;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.7rem;
+        }
+
+        .upgrade-btn {
+            background: linear-gradient(135deg, #f5af19, #f12711);
+            color: white;
+            border: none !important;
+        }
+
+        .upgrade-btn:hover {
+            background: linear-gradient(135deg, #e09d10, #d41c0a);
         }
 
         .search-group {
@@ -301,6 +329,11 @@
             cursor: pointer;
         }
 
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         .corner-status, .line-select-status {
             background: #eef2ff;
             padding: 8px 14px;
@@ -342,6 +375,50 @@
             50% { transform: scale(1.3); }
             100% { transform: scale(1); }
         }
+
+        .upgrade-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+            z-index: 3000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .upgrade-modal-content {
+            background: white;
+            border-radius: 32px;
+            padding: 32px;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .upgrade-modal-content h2 {
+            margin-bottom: 16px;
+        }
+
+        .upgrade-modal-content button {
+            margin-top: 20px;
+            padding: 10px 24px;
+            border-radius: 40px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .limit-warning {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            margin-top: 8px;
+        }
     </style>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
@@ -350,13 +427,15 @@
 
 <div class="top-toolbar">
     <span class="badge">📍 GeoPointMaker Pro</span>
+    <span id="tierBadge" class="free-badge">🎁 FREE TIER</span>
     <button id="undoBtn">↩️ Undo last</button>
     <div class="search-group">
         <input id="searchBox" placeholder="Search location..." autocomplete="off">
         <button id="searchBtn">🔍</button>
     </div>
-    <button id="exportBtn">📎 Export CSV</button>
+    <button id="exportBtn" class="export-btn">📎 Export CSV</button>
     <button id="clearAllBtn" style="color:#b91c1c;">🗑️ Clear all</button>
+    <button id="upgradeBtn" class="upgrade-btn">⭐ Upgrade to Premium</button>
 </div>
 
 <div class="dashboard-main">
@@ -381,6 +460,9 @@
                 <tbody id="pointsTableBody"><tr><td colspan="4">Click map to add points</td></tr></tbody>
             </table>
         </div>
+        <div id="freeLimitWarning" class="limit-warning" style="display:none; margin:12px;">
+            ⚠️ FREE TIER: Max 50 points. Upgrade to Premium for unlimited points.
+        </div>
     </div>
 </div>
 
@@ -395,11 +477,11 @@
                 <select id="linePointB" style="flex:1;">
                     <option value="">-- To point --</option>
                 </select>
-                <input type="number" id="lineCount" value="12" min="2" max="200" style="width:70px;">
+                <input type="number" id="lineCount" value="5" min="2" max="500" style="width:70px;">
                 <button id="generateLineBtn" class="primary-btn">Generate</button>
             </div>
-            <div style="font-size:0.65rem; color:#4b5563; margin-top:6px;">
-                💡 Generates <strong>interior points</strong> only (excludes existing endpoints)
+            <div id="lineLimitWarning" class="limit-warning" style="display:none;">
+                🔒 FREE TIER: Max 10 points per line. <a href="#" id="upgradeLinkLine" style="color:#f5af19;">Upgrade</a> for unlimited.
             </div>
         </div>
 
@@ -412,23 +494,173 @@
             </div>
             <button id="generateGridBtn" class="primary-btn">Generate grid</button>
             <div id="cornerStatus">📌 0/4 corners</div>
+            <div id="gridLimitWarning" class="limit-warning" style="display:none;">
+                🔒 FREE TIER: Max 20 grid points. <a href="#" id="upgradeLinkGrid" style="color:#f5af19;">Upgrade</a> for unlimited.
+            </div>
         </div>
 
         <div class="tool-card">
-            <h4>💡 How to use</h4>
+            <h4>💡 Free vs Premium</h4>
             <div style="font-size:0.7rem;">
-                <strong>✨ Hover table row</strong> → highlight point on map<br>
-                <strong>🎯 Select from/to points</strong> → highlight both endpoints<br>
-                <strong>📏 Line tool:</strong> Choose S & E → generates points BETWEEN them<br>
-                <strong>📏 Distance:</strong> Click points → Right-click to finish<br>
-                <strong>📐 Area:</strong> Click vertices → Right-click to close
+                <strong>🎁 FREE:</strong><br>
+                • Max 50 total points<br>
+                • Line: max 10 points<br>
+                • Grid: max 20 points<br>
+                • ❌ No CSV export<br>
+                <br>
+                <strong style="color:#f5af19;">⭐ PREMIUM:</strong><br>
+                • Unlimited points<br>
+                • Unlimited line/grid<br>
+                • ✅ CSV export<br>
+                • Priority support
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // ========== STATE ==========
+    // ========== TIER CONFIGURATION ==========
+    const FREE_LIMITS = {
+        maxTotalPoints: 50,
+        maxLinePoints: 10,
+        maxGridPoints: 20,
+        canExport: false
+    };
+    
+    const PREMIUM_LIMITS = {
+        maxTotalPoints: Infinity,
+        maxLinePoints: 500,
+        maxGridPoints: 500,
+        canExport: true
+    };
+    
+    // Check/set tier in localStorage
+    let isPremium = localStorage.getItem('geoPointMakerPremium') === 'true';
+    
+    function getCurrentLimits() {
+        return isPremium ? PREMIUM_LIMITS : FREE_LIMITS;
+    }
+    
+    function saveTier(premium) {
+        isPremium = premium;
+        localStorage.setItem('geoPointMakerPremium', premium);
+        updateUIForTier();
+        showToast(premium ? '✨ Upgraded to Premium! Enjoy unlimited features.' : 'Back to Free tier');
+    }
+    
+    function updateUIForTier() {
+        const limits = getCurrentLimits();
+        const tierBadge = document.getElementById('tierBadge');
+        const exportBtn = document.getElementById('exportBtn');
+        const lineCountInput = document.getElementById('lineCount');
+        const lineWarning = document.getElementById('lineLimitWarning');
+        const gridWarning = document.getElementById('gridLimitWarning');
+        const freeWarning = document.getElementById('freeLimitWarning');
+        
+        if (isPremium) {
+            tierBadge.className = 'premium-badge';
+            tierBadge.innerHTML = '⭐ PREMIUM';
+            exportBtn.disabled = false;
+            exportBtn.style.opacity = '1';
+            lineCountInput.max = PREMIUM_LIMITS.maxLinePoints;
+            lineWarning.style.display = 'none';
+            gridWarning.style.display = 'none';
+            freeWarning.style.display = 'none';
+        } else {
+            tierBadge.className = 'free-badge';
+            tierBadge.innerHTML = '🎁 FREE TIER';
+            exportBtn.disabled = true;
+            exportBtn.style.opacity = '0.5';
+            lineCountInput.max = FREE_LIMITS.maxLinePoints;
+            
+            // Show warnings if approaching limits
+            if (points.length >= FREE_LIMITS.maxTotalPoints - 5) {
+                freeWarning.style.display = 'block';
+            } else {
+                freeWarning.style.display = 'none';
+            }
+            
+            if (parseInt(lineCountInput.value) > FREE_LIMITS.maxLinePoints) {
+                lineCountInput.value = FREE_LIMITS.maxLinePoints;
+                lineWarning.style.display = 'block';
+            } else {
+                lineWarning.style.display = 'none';
+            }
+            
+            const rows = parseInt(document.getElementById('gridRows').value) || 3;
+            const cols = parseInt(document.getElementById('gridCols').value) || 5;
+            if (rows * cols > FREE_LIMITS.maxGridPoints) {
+                gridWarning.style.display = 'block';
+            } else {
+                gridWarning.style.display = 'none';
+            }
+        }
+        
+        // Also update generate button limits in real-time
+        updateLimitWarningFromInputs();
+    }
+    
+    function updateLimitWarningFromInputs() {
+        if (isPremium) return;
+        const lineVal = parseInt(document.getElementById('lineCount').value) || 2;
+        const lineWarning = document.getElementById('lineLimitWarning');
+        if (lineVal > FREE_LIMITS.maxLinePoints) {
+            lineWarning.style.display = 'block';
+        } else {
+            lineWarning.style.display = 'none';
+        }
+        
+        const rows = parseInt(document.getElementById('gridRows').value) || 1;
+        const cols = parseInt(document.getElementById('gridCols').value) || 1;
+        const gridPoints = rows * cols;
+        const gridWarning = document.getElementById('gridLimitWarning');
+        if (gridPoints > FREE_LIMITS.maxGridPoints) {
+            gridWarning.style.display = 'block';
+        } else {
+            gridWarning.style.display = 'none';
+        }
+    }
+    
+    function checkCanAddPoints(count = 1) {
+        if (isPremium) return true;
+        if (points.length + count > FREE_LIMITS.maxTotalPoints) {
+            showUpgradeModal(`You've reached the FREE limit of ${FREE_LIMITS.maxTotalPoints} points. Upgrade to Premium for unlimited points!`);
+            return false;
+        }
+        return true;
+    }
+    
+    function showUpgradeModal(message) {
+        const modal = document.createElement('div');
+        modal.className = 'upgrade-modal';
+        modal.innerHTML = `
+            <div class="upgrade-modal-content">
+                <h2>⭐ Upgrade to Premium</h2>
+                <p>${message}</p>
+                <p style="margin: 16px 0; font-size:0.8rem;">✓ Unlimited points<br>✓ CSV Export<br>✓ Unlimited line/grid generation</p>
+                <button id="upgradeConfirmBtn" style="background:#f5af19; color:white;">Upgrade Now - $9.99</button>
+                <button id="upgradeCancelBtn" style="background:#e2e8f0; margin-left:10px;">Maybe Later</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        document.getElementById('upgradeConfirmBtn').onclick = () => {
+            modal.remove();
+            saveTier(true);
+            showToast('✨ Premium activated! Refresh to enjoy all features.');
+        };
+        document.getElementById('upgradeCancelBtn').onclick = () => modal.remove();
+    }
+    
+    function checkExportAllowed() {
+        if (!getCurrentLimits().canExport) {
+            showUpgradeModal('CSV Export is a Premium feature. Upgrade to export your points!');
+            return false;
+        }
+        return true;
+    }
+    
+    // ========== EXISTING APP STATE ==========
     let points = [];
     let nextId = 1;
     let markers = [];
@@ -604,6 +836,7 @@
             tbody.innerHTML = '<tr><td colspan="4">✨ No points — click map to add</td></tr>';
             document.getElementById('pointCountBadge').innerHTML = '0 points';
             updatePointSelectors();
+            updateUIForTier();
             return;
         }
         tbody.innerHTML = '';
@@ -634,6 +867,7 @@
         });
         document.getElementById('pointCountBadge').innerHTML = `${points.length} points`;
         updatePointSelectors();
+        updateUIForTier();
     }
     
     function syncMarkers() {
@@ -656,6 +890,7 @@
     }
     
     function addPoint(lat, lon, silent = false) {
+        if (!checkCanAddPoints(1)) return null;
         const newPoint = { id: nextId++, lat, lon };
         points.push(newPoint);
         syncMarkers();
@@ -686,6 +921,7 @@
     }
     
     function exportCSV() {
+        if (!checkExportAllowed()) return;
         if (points.length === 0) { showToast("No points to export"); return; }
         let csv = "id,lat,lon\n" + points.map(p => `${p.id},${p.lat},${p.lon}`).join("\n");
         const blob = new Blob([csv], { type: "text/csv" });
@@ -715,7 +951,7 @@
         }
     }
     
-    // ========== LINE GENERATOR - FIXED (no duplicate endpoints) ==========
+    // ========== LINE GENERATOR WITH TIER LIMITS ==========
     function generateLine() {
         const idA = document.getElementById('linePointA').value;
         const idB = document.getElementById('linePointB').value;
@@ -724,13 +960,25 @@
         const p1 = points.find(p => p.id == idA);
         const p2 = points.find(p => p.id == idB);
         if (!p1 || !p2) return;
-        const num = parseInt(document.getElementById('lineCount').value);
+        
+        let num = parseInt(document.getElementById('lineCount').value);
+        const limits = getCurrentLimits();
+        
+        if (num > limits.maxLinePoints) {
+            if (!isPremium) {
+                showUpgradeModal(`FREE tier allows max ${FREE_LIMITS.maxLinePoints} points per line. Upgrade to generate ${num} points!`);
+                return;
+            }
+            num = limits.maxLinePoints;
+        }
+        
         if (num < 2) { showToast("Need at least 2 points"); return; }
         
         let addedCount = 0;
         const interiorCount = num - 2;
         
         if (interiorCount > 0) {
+            if (!checkCanAddPoints(interiorCount)) return;
             for (let i = 1; i <= interiorCount; i++) {
                 const t = i / (interiorCount + 1);
                 const lat = p1.lat + (p2.lat - p1.lat) * t;
@@ -741,8 +989,6 @@
             showToast(`📈 Generated ${addedCount} new points between #${p1.id} and #${p2.id}`);
         } else if (num === 2) {
             showToast(`ℹ️ Line would just be the endpoints (already exist). Increase number of points.`);
-        } else {
-            showToast(`📈 No new points needed - endpoints already exist`);
         }
     }
     
@@ -765,9 +1011,22 @@
     
     function generateGrid() {
         if (selectedCorners.length !== 4) { showToast("Select 4 corners first"); return; }
-        const rows = parseInt(document.getElementById('gridRows').value);
-        const cols = parseInt(document.getElementById('gridCols').value);
+        let rows = parseInt(document.getElementById('gridRows').value);
+        let cols = parseInt(document.getElementById('gridCols').value);
         if (rows < 1 || cols < 1) return;
+        
+        const limits = getCurrentLimits();
+        const totalPoints = rows * cols;
+        
+        if (totalPoints > limits.maxGridPoints) {
+            if (!isPremium) {
+                showUpgradeModal(`FREE tier allows max ${FREE_LIMITS.maxGridPoints} grid points. Your grid would create ${totalPoints} points. Upgrade to continue!`);
+                return;
+            }
+        }
+        
+        if (!checkCanAddPoints(totalPoints)) return;
+        
         const [ul, ur, ll, lr] = selectedCorners;
         
         for (let r = 0; r < rows; r++) {
@@ -786,7 +1045,7 @@
         showToast(`🧩 Grid generated (${rows}x${cols} points)`);
     }
     
-    // ========== MEASUREMENT TOOLS ==========
+    // ========== MEASUREMENT TOOLS (unchanged, free for all) ==========
     function clearMeasurements() {
         measureLines.forEach(line => map.removeLayer(line));
         measurePolygons.forEach(poly => map.removeLayer(poly));
@@ -930,6 +1189,9 @@
         
         document.getElementById('linePointA').addEventListener('change', updateSelectedPointsHighlight);
         document.getElementById('linePointB').addEventListener('change', updateSelectedPointsHighlight);
+        document.getElementById('lineCount').addEventListener('input', updateLimitWarningFromInputs);
+        document.getElementById('gridRows').addEventListener('input', updateLimitWarningFromInputs);
+        document.getElementById('gridCols').addEventListener('input', updateLimitWarningFromInputs);
     }
     
     function bindEvents() {
@@ -943,14 +1205,23 @@
         document.getElementById('measureDistanceBtn').onclick = startDistanceMode;
         document.getElementById('measureAreaBtn').onclick = startAreaMode;
         document.getElementById('clearMeasureBtn').onclick = clearMeasurements;
+        document.getElementById('upgradeBtn').onclick = () => showUpgradeModal('Upgrade to Premium and unlock all features!');
         document.getElementById('searchBox').addEventListener('keypress', (e) => { if(e.key === 'Enter') searchLocation(); });
+        
+        if (document.getElementById('upgradeLinkLine')) {
+            document.getElementById('upgradeLinkLine').onclick = (e) => { e.preventDefault(); showUpgradeModal('Upgrade for unlimited line generation!'); };
+        }
+        if (document.getElementById('upgradeLinkGrid')) {
+            document.getElementById('upgradeLinkGrid').onclick = (e) => { e.preventDefault(); showUpgradeModal('Upgrade for unlimited grid generation!'); };
+        }
     }
     
     window.addEventListener('DOMContentLoaded', () => {
         initMap();
         bindEvents();
         refreshTable();
-        showToast("✨ Fixed: Line tool only creates interior points (no duplicates)", 4000);
+        updateUIForTier();
+        showToast(isPremium ? '✨ Premium active — unlimited features!' : '🎁 Free tier: 50 points max, no export. Click Upgrade to unlock!', 5000);
     });
 </script>
 </body>
