@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>GeoPointMaker Pro ✦ Fixed Line Interpolator</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: #eef2f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .top-toolbar {
+            background: whitesmoke;
+            backdrop-filter: blur(8px);
+            padding: 8px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            border-bottom: 1px solid #cbd5e1;
+            flex-shrink: 0;
+        }
+
+        .top-toolbar button, .top-toolbar .search-group {
+            background: white;
+            border: 1px solid #cbd5e1;
+            padding: 6px 14px;
+            border-radius: 40px;
+            font-weight: 500;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .top-toolbar button:hover {
+            background: #eef2ff;
+            border-color: #818cf8;
+        }
+
+        .search-group {
+            display: inline-flex;
+            gap: 0;
+            padding: 0;
+            overflow: hidden;
+            background: white;
+        }
+
+        .search-group input {
+            border: none;
+            padding: 6px 12px;
+            width: 200px;
+            outline: none;
+            font-size: 0.8rem;
+        }
+
+        .search-group button {
+            border: none;
+            border-radius: 0;
+            margin: 0;
+            background: #f1f5f9;
+        }
+
+        .badge {
+            background: #1e293b;
+            color: white;
+            font-size: 0.7rem;
+            padding: 4px 12px;
+            border-radius: 40px;
+        }
+
+        .dashboard-main {
+            display: flex;
+            flex: 1;
+            gap: 16px;
+            padding: 16px 20px 12px 20px;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .map-container {
+            flex: 2;
+            min-width: 0;
+            background: #f8fafc;
+            border-radius: 28px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #map {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .measure-tools {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            z-index: 400;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(12px);
+            border-radius: 48px;
+            padding: 8px 16px;
+            display: flex;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            border: 1px solid #ddd;
+        }
+        
+        .measure-tools button {
+            background: #1e293b;
+            border: none;
+            color: white;
+            border-radius: 32px;
+            padding: 8px 18px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        
+        .measure-tools button.active {
+            background: #4f46e5;
+            box-shadow: 0 0 0 2px #cbd5e1;
+        }
+        
+        .measure-tools button:hover {
+            background: #0f172a;
+            transform: scale(0.98);
+        }
+
+        .measure-status {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 400;
+            background: rgba(0,0,0,0.75);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 32px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+        }
+
+        .points-panel {
+            flex: 1.2;
+            min-width: 280px;
+            background: whitesmoke;
+            border-radius: 28px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .points-header {
+            padding: 16px 18px 8px 18px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            border-bottom: 1px solid #ecf3f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-shrink: 0;
+        }
+
+        .table-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 12px 12px 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+        }
+
+        th, td {
+            padding: 10px 6px;
+            text-align: left;
+            border-bottom: 1px solid #e9edf2;
+        }
+
+        th {
+            background: #f8fafd;
+            position: sticky;
+            top: 0;
+        }
+
+        .points-table-row {
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        
+        .points-table-row:hover {
+            background: #e0e7ff !important;
+        }
+        
+        .points-table-row.highlighted-row {
+            background: #dbeafe;
+        }
+
+        .delete-point-btn {
+            background: none;
+            border: none;
+            font-size: 1.1rem;
+            cursor: pointer;
+            color: #c2410c;
+            transition: 0.1s;
+        }
+        
+        .delete-point-btn:hover {
+            transform: scale(1.1);
+            color: #9b2c0c;
+        }
+
+        .generator-studio {
+            background: whitesmoke;
+            border-radius: 28px;
+            margin: 0 20px 20px 20px;
+            padding: 18px 24px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+            flex-shrink: 0;
+        }
+
+        .studio-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 28px;
+            align-items: flex-start;
+            justify-content: space-between;
+        }
+
+        .tool-card {
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .tool-card h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .input-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        input[type="number"], select {
+            padding: 6px 12px;
+            border-radius: 40px;
+            border: 1px solid #cbd5e1;
+            background: white;
+        }
+
+        select {
+            cursor: pointer;
+        }
+
+        button.primary-btn {
+            background: #1e3c72;
+            border: none;
+            color: white;
+            padding: 6px 18px;
+            border-radius: 40px;
+            cursor: pointer;
+        }
+
+        button.secondary {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 6px 18px;
+            border-radius: 40px;
+            cursor: pointer;
+        }
+
+        .corner-status, .line-select-status {
+            background: #eef2ff;
+            padding: 8px 14px;
+            border-radius: 32px;
+            font-size: 0.7rem;
+            margin-top: 12px;
+        }
+
+        .toast-msg {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            background: #0f172ae6;
+            backdrop-filter: blur(8px);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            z-index: 2000;
+            pointer-events: none;
+        }
+
+        .leaflet-div-icon {
+            background: transparent !important;
+            border: none !important;
+        }
+
+        .highlight-marker {
+            filter: drop-shadow(0 0 8px #f97316);
+            transition: filter 0.1s ease;
+        }
+        
+        .marker-pulse {
+            animation: pulse 0.6s ease-in-out 2;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+    </style>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+</head>
+<body>
+
+<div class="top-toolbar">
+    <span class="badge">📍 GeoPointMaker Pro</span>
+    <button id="undoBtn">↩️ Undo last</button>
+    <div class="search-group">
+        <input id="searchBox" placeholder="Search location..." autocomplete="off">
+        <button id="searchBtn">🔍</button>
+    </div>
+    <button id="exportBtn">📎 Export CSV</button>
+    <button id="clearAllBtn" style="color:#b91c1c;">🗑️ Clear all</button>
+</div>
+
+<div class="dashboard-main">
+    <div class="map-container">
+        <div id="map"></div>
+        <div class="measure-tools">
+            <button id="measureDistanceBtn">📏 Distance</button>
+            <button id="measureAreaBtn">📐 Area</button>
+            <button id="clearMeasureBtn">🗑️ Clear</button>
+        </div>
+        <div id="measureStatus" class="measure-status" style="display:none;"></div>
+    </div>
+
+    <div class="points-panel">
+        <div class="points-header">
+            <span>📋 Point registry</span>
+            <span id="pointCountBadge">0 points</span>
+        </div>
+        <div class="table-wrapper">
+            <table id="pointsTable">
+                <thead><th>ID</th><th>Latitude</th><th>Longitude</th><th></th></thead>
+                <tbody id="pointsTableBody"><tr><td colspan="4">Click map to add points</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="generator-studio">
+    <div class="studio-grid">
+        <div class="tool-card">
+            <h4>📏 Line interpolator</h4>
+            <div class="input-row">
+                <select id="linePointA" style="flex:1;">
+                    <option value="">-- From point --</option>
+                </select>
+                <select id="linePointB" style="flex:1;">
+                    <option value="">-- To point --</option>
+                </select>
+                <input type="number" id="lineCount" value="12" min="2" max="200" style="width:70px;">
+                <button id="generateLineBtn" class="primary-btn">Generate</button>
+            </div>
+            <div style="font-size:0.65rem; color:#4b5563; margin-top:6px;">
+                💡 Generates <strong>interior points</strong> only (excludes existing endpoints)
+            </div>
+        </div>
+
+        <div class="tool-card">
+            <h4>🧩 Grid builder</h4>
+            <div class="input-row">
+                <input type="number" id="gridRows" value="3" min="1" max="50" placeholder="Rows">
+                <input type="number" id="gridCols" value="5" min="1" max="50" placeholder="Cols">
+                <button id="startGridSelectBtn" class="secondary">Select corners</button>
+            </div>
+            <button id="generateGridBtn" class="primary-btn">Generate grid</button>
+            <div id="cornerStatus">📌 0/4 corners</div>
+        </div>
+
+        <div class="tool-card">
+            <h4>💡 How to use</h4>
+            <div style="font-size:0.7rem;">
+                <strong>✨ Hover table row</strong> → highlight point on map<br>
+                <strong>🎯 Select from/to points</strong> → highlight both endpoints<br>
+                <strong>📏 Line tool:</strong> Choose S & E → generates points BETWEEN them<br>
+                <strong>📏 Distance:</strong> Click points → Right-click to finish<br>
+                <strong>📐 Area:</strong> Click vertices → Right-click to close
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ========== STATE ==========
+    let points = [];
+    let nextId = 1;
+    let markers = [];
+    let map;
+    
+    let currentHighlightedMarker = null;
+    let currentHighlightedRow = null;
+    let selectedStartMarker = null;
+    let selectedEndMarker = null;
+    
+    let selectedCorners = [];
+    let gridSelectionMode = false;
+    let drawnCornersLayer;
+    
+    let measureMode = null;
+    let measurePoints = [];
+    let measureLines = [];
+    let measurePolygons = [];
+    let tempMarkers = [];
+    let tempLine = null;
+    
+    const startIcon = L.divIcon({
+        className: 'custom-start-icon',
+        html: '<div style="background:#10b981; color:white; border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid white; box-shadow:0 2px 6px rgba(0,0,0,0.3);">S</div>',
+        iconSize: [24, 24],
+        popupAnchor: [0, -10]
+    });
+    
+    const endIcon = L.divIcon({
+        className: 'custom-end-icon',
+        html: '<div style="background:#ef4444; color:white; border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-weight:bold; border:2px solid white; box-shadow:0 2px 6px rgba(0,0,0,0.3);">E</div>',
+        iconSize: [24, 24],
+        popupAnchor: [0, -10]
+    });
+    
+    const highlightIcon = L.divIcon({
+        className: 'custom-highlight-icon',
+        html: '<div style="background:#f97316; color:white; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-weight:bold; border:3px solid white; box-shadow:0 0 12px #f97316;">●</div>',
+        iconSize: [30, 30],
+        popupAnchor: [0, -15]
+    });
+    
+    function showToast(msg, duration = 2000) {
+        let existing = document.querySelector('.toast-msg');
+        if(existing) existing.remove();
+        let div = document.createElement('div');
+        div.className = 'toast-msg';
+        div.innerText = msg;
+        document.body.appendChild(div);
+        setTimeout(() => div.remove(), duration);
+    }
+    
+    function highlightPointOnMap(pointId, scrollToRow = true) {
+        const markerObj = markers.find(m => m.pointId === pointId);
+        if (!markerObj) return;
+        
+        if (currentHighlightedMarker) {
+            const prevMarker = markers.find(m => m.marker === currentHighlightedMarker);
+            if (prevMarker && prevMarker.originalIcon) {
+                currentHighlightedMarker.setIcon(prevMarker.originalIcon);
+            }
+            if (currentHighlightedRow) {
+                currentHighlightedRow.classList.remove('highlighted-row');
+            }
+        }
+        
+        if (!markerObj.originalIcon) {
+            markerObj.originalIcon = markerObj.marker.options.icon;
+        }
+        
+        markerObj.marker.setIcon(highlightIcon);
+        currentHighlightedMarker = markerObj.marker;
+        
+        const point = points.find(p => p.id === pointId);
+        if (point) {
+            map.panTo([point.lat, point.lon], { animate: true, duration: 0.5 });
+        }
+        
+        if (scrollToRow) {
+            const rows = document.querySelectorAll('.points-table-row');
+            rows.forEach(row => {
+                const rowId = parseInt(row.dataset.pointId);
+                if (rowId === pointId) {
+                    row.classList.add('highlighted-row');
+                    currentHighlightedRow = row;
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
+        
+        const element = markerObj.marker._icon;
+        if (element) {
+            element.classList.add('marker-pulse');
+            setTimeout(() => element.classList.remove('marker-pulse'), 600);
+        }
+    }
+    
+    function clearPointHighlight() {
+        if (currentHighlightedMarker) {
+            const markerObj = markers.find(m => m.marker === currentHighlightedMarker);
+            if (markerObj && markerObj.originalIcon) {
+                currentHighlightedMarker.setIcon(markerObj.originalIcon);
+            }
+            currentHighlightedMarker = null;
+        }
+        if (currentHighlightedRow) {
+            currentHighlightedRow.classList.remove('highlighted-row');
+            currentHighlightedRow = null;
+        }
+    }
+    
+    function updateSelectedPointsHighlight() {
+        if (selectedStartMarker) {
+            const markerObj = markers.find(m => m.marker === selectedStartMarker);
+            if (markerObj && markerObj.originalIcon) {
+                selectedStartMarker.setIcon(markerObj.originalIcon);
+            }
+            selectedStartMarker = null;
+        }
+        if (selectedEndMarker) {
+            const markerObj = markers.find(m => m.marker === selectedEndMarker);
+            if (markerObj && markerObj.originalIcon) {
+                selectedEndMarker.setIcon(markerObj.originalIcon);
+            }
+            selectedEndMarker = null;
+        }
+        
+        const startId = document.getElementById('linePointA').value;
+        const endId = document.getElementById('linePointB').value;
+        
+        if (startId) {
+            const markerObj = markers.find(m => m.pointId == startId);
+            if (markerObj) {
+                if (!markerObj.originalIcon) markerObj.originalIcon = markerObj.marker.options.icon;
+                markerObj.marker.setIcon(startIcon);
+                selectedStartMarker = markerObj.marker;
+            }
+        }
+        
+        if (endId) {
+            const markerObj = markers.find(m => m.pointId == endId);
+            if (markerObj) {
+                if (!markerObj.originalIcon) markerObj.originalIcon = markerObj.marker.options.icon;
+                markerObj.marker.setIcon(endIcon);
+                selectedEndMarker = markerObj.marker;
+            }
+        }
+    }
+    
+    function updatePointSelectors() {
+        const selectA = document.getElementById('linePointA');
+        const selectB = document.getElementById('linePointB');
+        const selectedA = selectA.value;
+        const selectedB = selectB.value;
+        
+        selectA.innerHTML = '<option value="">-- From point --</option>';
+        selectB.innerHTML = '<option value="">-- To point --</option>';
+        
+        points.forEach(p => {
+            selectA.innerHTML += `<option value="${p.id}">#${p.id} (${p.lat.toFixed(4)}, ${p.lon.toFixed(4)})</option>`;
+            selectB.innerHTML += `<option value="${p.id}">#${p.id} (${p.lat.toFixed(4)}, ${p.lon.toFixed(4)})</option>`;
+        });
+        
+        if (selectedA && points.some(p => p.id == selectedA)) selectA.value = selectedA;
+        if (selectedB && points.some(p => p.id == selectedB)) selectB.value = selectedB;
+        
+        updateSelectedPointsHighlight();
+    }
+    
+    function refreshTable() {
+        const tbody = document.getElementById('pointsTableBody');
+        if (points.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4">✨ No points — click map to add</td></tr>';
+            document.getElementById('pointCountBadge').innerHTML = '0 points';
+            updatePointSelectors();
+            return;
+        }
+        tbody.innerHTML = '';
+        points.forEach(p => {
+            const row = tbody.insertRow();
+            row.className = 'points-table-row';
+            row.dataset.pointId = p.id;
+            
+            row.insertCell(0).innerText = p.id;
+            row.insertCell(1).innerText = p.lat.toFixed(6);
+            row.insertCell(2).innerText = p.lon.toFixed(6);
+            const delCell = row.insertCell(3);
+            const delBtn = document.createElement('button');
+            delBtn.innerHTML = '✖';
+            delBtn.className = 'delete-point-btn';
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                deletePointById(p.id);
+            };
+            delCell.appendChild(delBtn);
+            
+            row.addEventListener('mouseenter', () => {
+                highlightPointOnMap(p.id, false);
+            });
+            row.addEventListener('mouseleave', () => {
+                clearPointHighlight();
+            });
+        });
+        document.getElementById('pointCountBadge').innerHTML = `${points.length} points`;
+        updatePointSelectors();
+    }
+    
+    function syncMarkers() {
+        markers.forEach(m => map.removeLayer(m.marker));
+        markers = [];
+        points.forEach(p => {
+            const marker = L.marker([p.lat, p.lon], { riseOnHover: true })
+                .bindTooltip(`Point #${p.id}`, { sticky: true, direction: 'top' })
+                .addTo(map);
+            
+            marker.on('contextmenu', (e) => {
+                L.DomEvent.stopPropagation(e);
+                if (confirm(`Delete point #${p.id}?`)) deletePointById(p.id);
+            });
+            
+            markers.push({ marker, pointId: p.id, originalIcon: marker.options.icon });
+        });
+        refreshTable();
+        updateSelectedPointsHighlight();
+    }
+    
+    function addPoint(lat, lon, silent = false) {
+        const newPoint = { id: nextId++, lat, lon };
+        points.push(newPoint);
+        syncMarkers();
+        if (!silent) showToast(`✅ Point #${newPoint.id} added`);
+        return newPoint;
+    }
+    
+    function deletePointById(id) {
+        points = points.filter(p => p.id !== id);
+        syncMarkers();
+        showToast(`🗑️ Point deleted`);
+        clearPointHighlight();
+    }
+    
+    function undoLast() {
+        if (points.length === 0) { showToast("Nothing to undo"); return; }
+        points.pop();
+        syncMarkers();
+        showToast(`↩️ Undid last point`);
+    }
+    
+    function clearAllPoints() {
+        if (points.length === 0) return;
+        points = [];
+        syncMarkers();
+        showToast("🧹 All points cleared");
+        clearPointHighlight();
+    }
+    
+    function exportCSV() {
+        if (points.length === 0) { showToast("No points to export"); return; }
+        let csv = "id,lat,lon\n" + points.map(p => `${p.id},${p.lat},${p.lon}`).join("\n");
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `geopoints_${Date.now()}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast("📥 CSV exported");
+    }
+    
+    async function searchLocation() {
+        const query = document.getElementById('searchBox').value;
+        if (!query.trim()) { showToast("Enter a location"); return; }
+        showToast("🔍 Searching...");
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`, {
+                headers: { 'User-Agent': 'GeoPointMaker/1.0' }
+            });
+            const data = await res.json();
+            if (!data.length) throw new Error();
+            map.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 14);
+            showToast(`📍 ${data[0].display_name.substring(0, 40)}`);
+        } catch(e) {
+            showToast("❌ Location not found");
+        }
+    }
+    
+    // ========== LINE GENERATOR - FIXED (no duplicate endpoints) ==========
+    function generateLine() {
+        const idA = document.getElementById('linePointA').value;
+        const idB = document.getElementById('linePointB').value;
+        if (!idA || !idB) { showToast("Select two points from dropdowns"); return; }
+        if (idA === idB) { showToast("Select two different points"); return; }
+        const p1 = points.find(p => p.id == idA);
+        const p2 = points.find(p => p.id == idB);
+        if (!p1 || !p2) return;
+        const num = parseInt(document.getElementById('lineCount').value);
+        if (num < 2) { showToast("Need at least 2 points"); return; }
+        
+        let addedCount = 0;
+        const interiorCount = num - 2;
+        
+        if (interiorCount > 0) {
+            for (let i = 1; i <= interiorCount; i++) {
+                const t = i / (interiorCount + 1);
+                const lat = p1.lat + (p2.lat - p1.lat) * t;
+                const lon = p1.lon + (p2.lon - p1.lon) * t;
+                addPoint(lat, lon, true);
+                addedCount++;
+            }
+            showToast(`📈 Generated ${addedCount} new points between #${p1.id} and #${p2.id}`);
+        } else if (num === 2) {
+            showToast(`ℹ️ Line would just be the endpoints (already exist). Increase number of points.`);
+        } else {
+            showToast(`📈 No new points needed - endpoints already exist`);
+        }
+    }
+    
+    // ========== GRID CORNERS ==========
+    function startGridSelection() {
+        if (gridSelectionMode) {
+            gridSelectionMode = false;
+            selectedCorners = [];
+            drawnCornersLayer.clearLayers();
+            document.getElementById('cornerStatus').innerHTML = '📌 0/4 corners';
+            showToast("Corner selection cancelled");
+            return;
+        }
+        selectedCorners = [];
+        drawnCornersLayer.clearLayers();
+        gridSelectionMode = true;
+        document.getElementById('cornerStatus').innerHTML = '🎯 Click map: UL → UR → LL → LR (0/4)';
+        showToast("Corner mode ACTIVE — click 4 corners", 2500);
+    }
+    
+    function generateGrid() {
+        if (selectedCorners.length !== 4) { showToast("Select 4 corners first"); return; }
+        const rows = parseInt(document.getElementById('gridRows').value);
+        const cols = parseInt(document.getElementById('gridCols').value);
+        if (rows < 1 || cols < 1) return;
+        const [ul, ur, ll, lr] = selectedCorners;
+        
+        for (let r = 0; r < rows; r++) {
+            const v = rows === 1 ? 0 : r / (rows - 1);
+            const leftLat = ul.lat + (ll.lat - ul.lat) * v;
+            const leftLon = ul.lon + (ll.lon - ul.lon) * v;
+            const rightLat = ur.lat + (lr.lat - ur.lat) * v;
+            const rightLon = ur.lon + (lr.lon - ur.lon) * v;
+            for (let c = 0; c < cols; c++) {
+                const h = cols === 1 ? 0 : c / (cols - 1);
+                const lat = leftLat + (rightLat - leftLat) * h;
+                const lon = leftLon + (rightLon - leftLon) * h;
+                addPoint(lat, lon, true);
+            }
+        }
+        showToast(`🧩 Grid generated (${rows}x${cols} points)`);
+    }
+    
+    // ========== MEASUREMENT TOOLS ==========
+    function clearMeasurements() {
+        measureLines.forEach(line => map.removeLayer(line));
+        measurePolygons.forEach(poly => map.removeLayer(poly));
+        tempMarkers.forEach(m => map.removeLayer(m));
+        if (tempLine) map.removeLayer(tempLine);
+        measureLines = [];
+        measurePolygons = [];
+        tempMarkers = [];
+        tempLine = null;
+        measurePoints = [];
+        measureMode = null;
+        document.getElementById('measureStatus').style.display = 'none';
+        document.querySelectorAll('.measure-tools button').forEach(btn => btn.classList.remove('active'));
+        showToast("Measurements cleared");
+    }
+    
+    function finishMeasurement() {
+        if (measureMode === 'distance' && measurePoints.length >= 2) {
+            let totalDistance = 0;
+            for (let i = 0; i < measurePoints.length - 1; i++) {
+                const from = turf.point([measurePoints[i].lng, measurePoints[i].lat]);
+                const to = turf.point([measurePoints[i+1].lng, measurePoints[i+1].lat]);
+                totalDistance += turf.distance(from, to, { units: 'kilometers' });
+            }
+            const finalLine = L.polyline(measurePoints, { color: '#f97316', weight: 4 });
+            finalLine.addTo(map);
+            finalLine.bindPopup(`📏 Distance: ${totalDistance.toFixed(2)} km`).openPopup();
+            measureLines.push(finalLine);
+            showToast(`📏 Distance: ${totalDistance.toFixed(2)} km`);
+        } 
+        else if (measureMode === 'area' && measurePoints.length >= 3) {
+            const polygonCoords = [...measurePoints, measurePoints[0]];
+            const polygon = L.polygon(polygonCoords, { color: '#3b82f6', weight: 3, fillOpacity: 0.3 });
+            polygon.addTo(map);
+            const area = turf.area(turf.polygon([polygonCoords.map(p => [p.lng, p.lat])]));
+            const areaKm2 = area / 1e6;
+            polygon.bindPopup(`📐 Area: ${areaKm2.toFixed(2)} km²`).openPopup();
+            measurePolygons.push(polygon);
+            showToast(`📐 Area: ${areaKm2.toFixed(2)} km²`);
+        }
+        
+        tempMarkers.forEach(m => map.removeLayer(m));
+        if (tempLine) map.removeLayer(tempLine);
+        tempMarkers = [];
+        tempLine = null;
+        measurePoints = [];
+        measureMode = null;
+        document.getElementById('measureStatus').style.display = 'none';
+        document.querySelectorAll('.measure-tools button').forEach(btn => btn.classList.remove('active'));
+    }
+    
+    function startDistanceMode() {
+        clearMeasurements();
+        measureMode = 'distance';
+        measurePoints = [];
+        document.getElementById('measureStatus').innerHTML = '📏 Distance mode: Click points, RIGHT-CLICK to finish';
+        document.getElementById('measureStatus').style.display = 'block';
+        document.getElementById('measureDistanceBtn').classList.add('active');
+        showToast("Distance mode active — click points, right-click to finish", 2500);
+    }
+    
+    function startAreaMode() {
+        clearMeasurements();
+        measureMode = 'area';
+        measurePoints = [];
+        document.getElementById('measureStatus').innerHTML = '📐 Area mode: Click vertices, RIGHT-CLICK to close';
+        document.getElementById('measureStatus').style.display = 'block';
+        document.getElementById('measureAreaBtn').classList.add('active');
+        showToast("Area mode active — click vertices, right-click to finish", 2500);
+    }
+    
+    function handleMapClickForMeasure(e) {
+        if (!measureMode) return;
+        const clickedPoint = e.latlng;
+        measurePoints.push(clickedPoint);
+        
+        const marker = L.circleMarker(clickedPoint, { radius: 5, color: '#ff4444', fillColor: '#ff4444', fillOpacity: 0.8 });
+        marker.addTo(map);
+        tempMarkers.push(marker);
+        
+        if (tempLine) map.removeLayer(tempLine);
+        if (measurePoints.length >= 2) {
+            tempLine = L.polyline(measurePoints, { color: '#ffaa44', weight: 3, dashArray: '5, 5' });
+            tempLine.addTo(map);
+        }
+        marker.bindTooltip(`${measurePoints.length}`, { permanent: false, direction: 'top' }).openTooltip();
+    }
+    
+    // ========== MAP INIT ==========
+    function initMap() {
+        map = L.map('map').setView([-23.5505, -46.6333], 12);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri'
+        }).addTo(map);
+        
+        drawnCornersLayer = L.layerGroup().addTo(map);
+        
+        map.on('click', (e) => {
+            if (gridSelectionMode) {
+                if (selectedCorners.length < 4) {
+                    const labels = ["UL", "UR", "LL", "LR"];
+                    selectedCorners.push({ lat: e.latlng.lat, lon: e.latlng.lng });
+                    const marker = L.marker([e.latlng.lat, e.latlng.lng], {
+                        icon: L.divIcon({ html: `<div style="background:#4f46e5; color:white; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:bold;">${selectedCorners.length}</div>`, iconSize: [28,28] })
+                    }).addTo(drawnCornersLayer);
+                    marker.bindTooltip(labels[selectedCorners.length-1]).openTooltip();
+                    document.getElementById('cornerStatus').innerHTML = `✅ ${selectedCorners.length}/4 corners`;
+                    if (selectedCorners.length === 4) {
+                        gridSelectionMode = false;
+                        showToast("All 4 corners selected! Click Generate Grid.");
+                    }
+                }
+                return;
+            }
+            
+            if (measureMode) {
+                handleMapClickForMeasure(e);
+                return;
+            }
+            
+            addPoint(e.latlng.lat, e.latlng.lng);
+        });
+        
+        map.on('contextmenu', (e) => {
+            if (gridSelectionMode) {
+                gridSelectionMode = false;
+                selectedCorners = [];
+                drawnCornersLayer.clearLayers();
+                document.getElementById('cornerStatus').innerHTML = '📌 0/4 corners';
+                showToast("Corner selection cancelled");
+                L.DomEvent.stopPropagation(e);
+                return;
+            }
+            
+            if (measureMode && measurePoints.length >= (measureMode === 'distance' ? 2 : 3)) {
+                finishMeasurement();
+                L.DomEvent.stopPropagation(e);
+            }
+        });
+        
+        document.getElementById('linePointA').addEventListener('change', updateSelectedPointsHighlight);
+        document.getElementById('linePointB').addEventListener('change', updateSelectedPointsHighlight);
+    }
+    
+    function bindEvents() {
+        document.getElementById('undoBtn').onclick = undoLast;
+        document.getElementById('exportBtn').onclick = exportCSV;
+        document.getElementById('clearAllBtn').onclick = () => { if(confirm("Delete ALL points?")) clearAllPoints(); };
+        document.getElementById('searchBtn').onclick = searchLocation;
+        document.getElementById('generateLineBtn').onclick = generateLine;
+        document.getElementById('startGridSelectBtn').onclick = startGridSelection;
+        document.getElementById('generateGridBtn').onclick = generateGrid;
+        document.getElementById('measureDistanceBtn').onclick = startDistanceMode;
+        document.getElementById('measureAreaBtn').onclick = startAreaMode;
+        document.getElementById('clearMeasureBtn').onclick = clearMeasurements;
+        document.getElementById('searchBox').addEventListener('keypress', (e) => { if(e.key === 'Enter') searchLocation(); });
+    }
+    
+    window.addEventListener('DOMContentLoaded', () => {
+        initMap();
+        bindEvents();
+        refreshTable();
+        showToast("✨ Fixed: Line tool only creates interior points (no duplicates)", 4000);
+    });
+</script>
+</body>
+</html>
